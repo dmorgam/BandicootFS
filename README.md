@@ -59,6 +59,37 @@ Retrieve the chunks most related to a prompt within a base folder.
 
 Returns `chunks[]` of `{ text, source, start_line, score }`, ranked best first.
 
+### `grep`
+
+Regex search over indexable files. Paginated.
+
+| Param         | Required | Description                                    |
+|---------------|----------|------------------------------------------------|
+| `pattern`     | yes      | regular expression                             |
+| `base_folder` | no       | sub-folder under root; defaults to root        |
+| `ignore_case` | no       | case-insensitive match                         |
+| `limit`       | no       | max matches (default 50, max 200)              |
+| `offset`      | no       | matches to skip                                |
+
+### `list_files`
+
+List indexable files. Paginated.
+
+| Param         | Required | Description                                    |
+|---------------|----------|------------------------------------------------|
+| `base_folder` | no       | sub-folder under root; defaults to root        |
+| `glob`        | no       | filename glob, e.g. `*.go`                     |
+| `limit`       | no       | max files (default 50, max 200)                |
+| `offset`      | no       | files to skip                                  |
+
+**Pagination:** `grep` and `list_files` return `{ items[], total, next_offset }`.
+`next_offset` is `-1` when the last page is reached; otherwise pass it back as
+`offset` for the next page. This caps response size to protect the client's
+context window.
+
+**Sandbox:** `grep`/`list_files` resolve `base_folder` relative to `-root` and
+reject any path escaping it (no `../` traversal).
+
 ## How retrieval works
 
 No embedding model. Ranking is lexical, rebuilt per call:
