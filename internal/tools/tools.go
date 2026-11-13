@@ -19,4 +19,5 @@ func Register(srv *mcp.Server, r retriever.Retriever, c *corpus.Corpus) {
 	h.registerGetFileChunks(srv)
 	h.registerGrep(srv)
 	h.registerListFiles(srv)
+	h.registerReadFile(srv)
 }

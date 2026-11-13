@@ -63,10 +63,10 @@ func TestSymlinksCannotEscape(t *testing.T) {
 	c := sandbox(t)
 	ctx := context.Background()
 
-	if pg, err := c.Grep(ctx, "", "s3cret", false, 0, 0); err != nil || pg.Total != 0 {
+	if pg, err := c.Grep(ctx, "", "s3cret", GrepOptions{}); err != nil || pg.Total != 0 {
 		t.Errorf("grep through file symlinks = %+v, %v; want no matches", pg, err)
 	}
-	if _, err := c.Grep(ctx, "link", "s3cret", false, 0, 0); err == nil {
+	if _, err := c.Grep(ctx, "link", "s3cret", GrepOptions{}); err == nil {
 		t.Error("grep through dir symlink: want error")
 	}
 	pg, err := c.List(ctx, "", "", 0, 0)

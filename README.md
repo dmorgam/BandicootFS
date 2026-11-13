@@ -72,6 +72,7 @@ Regex search over indexable files. Paginated.
 | `pattern`     | yes      | regular expression                             |
 | `base_folder` | no       | sub-folder under root; defaults to root        |
 | `ignore_case` | no       | case-insensitive match                         |
+| `context`     | no       | lines before/after each match (`before[]`/`after[]`), max 10 |
 | `limit`       | no       | max matches (default 50, max 200)              |
 | `offset`      | no       | matches to skip                                |
 
@@ -85,6 +86,18 @@ List indexable files. Paginated.
 | `glob`        | no       | filename glob, e.g. `*.go`                     |
 | `limit`       | no       | max files (default 50, max 200)                |
 | `offset`      | no       | files to skip                                  |
+
+### `read_file`
+
+Read a line range of an indexable file, as `"<line>\t<content>"` rows. At most
+500 lines / 64 KB per call; if `next_line` is not `-1`, pass it as `start_line`
+to continue. Binary files are rejected.
+
+| Param         | Required | Description                                    |
+|---------------|----------|------------------------------------------------|
+| `path`        | yes      | file path relative to root                     |
+| `start_line`  | no       | first line, 1-based (default 1)                |
+| `end_line`    | no       | last line, inclusive (default start + 499)     |
 
 **Pagination:** `grep` and `list_files` return `{ items[], total, next_offset }`.
 `next_offset` is `-1` when the last page is reached; otherwise pass it back as

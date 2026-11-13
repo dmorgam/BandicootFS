@@ -1,5 +1,7 @@
 package corpus
 
+import "unicode/utf8"
+
 const (
 	defaultLimit = 50
 	maxLimit     = 200
@@ -49,10 +51,13 @@ func page[T any](items []T, offset, limit int) Page[T] {
 	return Page[T]{Items: window, Total: total, NextOffset: next}
 }
 
-// truncate caps s to n bytes, marking elision.
+// truncate caps s to n bytes, marking elision. It never splits a UTF-8 rune.
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
 	}
 	return s[:n] + "…"
 }
