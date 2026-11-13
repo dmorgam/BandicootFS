@@ -3,7 +3,6 @@ package corpus
 import (
 	"bufio"
 	"context"
-	"os"
 	"regexp"
 )
 
@@ -16,7 +15,7 @@ type Match struct {
 
 // Grep searches files under sub (root-relative) for pattern, paginated.
 func (c *Corpus) Grep(ctx context.Context, sub, pattern string, ignoreCase bool, offset, limit int) (Page[Match], error) {
-	dir, err := c.resolve(sub)
+	dir, err := c.Resolve(sub)
 	if err != nil {
 		return Page[Match]{}, err
 	}
@@ -33,9 +32,9 @@ func (c *Corpus) Grep(ctx context.Context, sub, pattern string, ignoreCase bool,
 
 	var matches []Match
 	err = c.walk(ctx, dir, func(path string) error {
-		f, err := os.Open(path)
+		f, err := c.FS().Open(path)
 		if err != nil {
-			return nil // skip
+			return nil // skip unreadable files and symlinks leaving root
 		}
 		defer f.Close()
 
@@ -45,7 +44,7 @@ func (c *Corpus) Grep(ctx context.Context, sub, pattern string, ignoreCase bool,
 		for sc.Scan() {
 			line++
 			if t := sc.Text(); re.MatchString(t) {
-				matches = append(matches, Match{Source: c.rel(path), Line: line, Text: truncate(t, maxLineLen)})
+				matches = append(matches, Match{Source: path, Line: line, Text: truncate(t, maxLineLen)})
 			}
 		}
 		return nil

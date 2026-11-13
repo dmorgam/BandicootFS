@@ -1,5 +1,6 @@
 // Package corpus provides filesystem browsing/search over the server root:
-// listing and grepping indexable files. All access is sandboxed to Root.
+// listing and grepping indexable files. All access goes through an os.Root,
+// so nothing outside Root is reachable, not even through symlinks.
 //
 // It must NOT import the mcp package.
 package corpus
@@ -9,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -17,41 +19,57 @@ import (
 type Corpus struct {
 	Root string   // absolute, cleaned sandbox boundary
 	Exts []string // file extensions to include (with dot, lowercase)
+
+	root *os.Root // every read goes through this handle
 }
 
-// New returns a Corpus rooted at root (resolved to an absolute path).
-func New(root string) *Corpus {
+// Open returns a Corpus confined to root (resolved to an absolute path).
+// It fails if root cannot be opened as a directory. Close releases it.
+func Open(root string) (*Corpus, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
-		abs = root
+		return nil, err
+	}
+	r, err := os.OpenRoot(abs)
+	if err != nil {
+		return nil, err
 	}
 	return &Corpus{
-		Root: filepath.Clean(abs),
+		Root: abs,
 		Exts: []string{".md", ".txt", ".go", ".py", ".js", ".ts", ".json", ".yaml", ".yml"},
-	}
+		root: r,
+	}, nil
 }
 
-// resolve maps a root-relative sub path to an absolute path, rejecting anything
-// that escapes Root.
-func (c *Corpus) resolve(sub string) (string, error) {
-	abs := filepath.Clean(filepath.Join(c.Root, sub))
-	if abs != c.Root && !strings.HasPrefix(abs, c.Root+string(os.PathSeparator)) {
-		return "", fmt.Errorf("path %q escapes root", sub)
+// Close releases the root handle.
+func (c *Corpus) Close() error { return c.root.Close() }
+
+// FS returns the sandboxed file system. Paths are slash-separated and relative
+// to Root; opening anything outside Root fails, including through symlinks.
+func (c *Corpus) FS() fs.FS { return c.root.FS() }
+
+// Resolve maps a caller-supplied folder to a path in FS. It accepts paths
+// relative to Root ("" means Root) and absolute paths under Root; anything
+// pointing outside Root is rejected.
+func (c *Corpus) Resolve(p string) (string, error) {
+	rel := p
+	if filepath.IsAbs(p) {
+		r, err := filepath.Rel(c.Root, p)
+		if err != nil {
+			return "", fmt.Errorf("path %q escapes root", p)
+		}
+		rel = r
 	}
-	return abs, nil
+	rel = path.Clean(filepath.ToSlash(rel))
+	if !fs.ValidPath(rel) { // ".." or "../x" survive cleaning: outside root
+		return "", fmt.Errorf("path %q escapes root", p)
+	}
+	return rel, nil
 }
 
-// rel returns path relative to Root (for display).
-func (c *Corpus) rel(path string) string {
-	if r, err := filepath.Rel(c.Root, path); err == nil {
-		return r
-	}
-	return path
-}
-
-// allowed reports whether path has one of c.Exts (case-insensitive).
-func (c *Corpus) allowed(path string) bool {
-	ext := strings.ToLower(filepath.Ext(path))
+// allowed reports whether name has one of c.Exts (case-insensitive).
+func (c *Corpus) allowed(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
 	for _, e := range c.Exts {
 		if ext == e {
 			return true
@@ -60,18 +78,19 @@ func (c *Corpus) allowed(path string) bool {
 	return false
 }
 
-// walk visits every allowed file under dir, calling fn with its path.
-func (c *Corpus) walk(ctx context.Context, dir string, fn func(path string) error) error {
-	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+// walk visits every allowed file under dir (a path in FS), calling fn with its
+// root-relative path.
+func (c *Corpus) walk(ctx context.Context, dir string, fn func(p string) error) error {
+	return fs.WalkDir(c.FS(), dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if d.IsDir() || !c.allowed(path) {
+		if d.IsDir() || !c.allowed(p) {
 			return nil
 		}
-		return fn(path)
+		return fn(p)
 	})
 }

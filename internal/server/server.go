@@ -4,6 +4,7 @@ package server
 import (
 	"log/slog"
 
+	"github.com/dmorgam/BandicootFS/internal/corpus"
 	"github.com/dmorgam/BandicootFS/internal/retriever"
 	"github.com/dmorgam/BandicootFS/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -14,9 +15,9 @@ const (
 	ServerVersion = "0.1.0"
 )
 
-// New builds a configured *mcp.Server backed by r. baseDir is the default base
-// folder tools use when a caller omits one. logger records every tool call.
-func New(logger *slog.Logger, r retriever.Retriever, baseDir string) *mcp.Server {
+// New builds a configured *mcp.Server backed by r. Tools only read through c,
+// which confines them to c.Root. logger records every tool call.
+func New(logger *slog.Logger, r retriever.Retriever, c *corpus.Corpus) *mcp.Server {
 	srv := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    ServerName,
@@ -26,7 +27,7 @@ func New(logger *slog.Logger, r retriever.Retriever, baseDir string) *mcp.Server
 	)
 
 	srv.AddReceivingMiddleware(logToolCalls(logger))
-	tools.Register(srv, r, baseDir)
+	tools.Register(srv, r, c)
 
 	return srv
 }

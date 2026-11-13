@@ -27,22 +27,26 @@ go build -o bandicootfs . && ./bandicootfs -root /path/to/docs
 HTTP transport:
 
 ```sh
-go run . -transport http -port 8000 -root .
+go run . -transport http -port 8000 -root .   # listens on 127.0.0.1
 curl localhost:8000/healthz             # -> ok
 ```
+
+Set `BANDICOOTFS_TOKEN` to require `Authorization: Bearer <token>` on the MCP
+endpoint. Binding a non-loopback `-host` without it logs a warning.
 
 ### Flags
 
 | Flag         | Default  | Description                          |
 |--------------|----------|--------------------------------------|
 | `-transport` | `stdio`  | `stdio` \| `http`                    |
-| `-root`        | `.`     | base folder to index (tool default)  |
+| `-root`        | `.`     | sandbox: tools can't read outside it |
 | `-topk`        | `5`     | default number of chunks per query   |
 | `-chunk-lines` | `80`    | lines per chunk                      |
 | `-overlap`     | `20`    | overlapping lines between chunks      |
 | `-min-score`   | `0`     | drop chunks scoring at or below this |
 | `-bm25-k1`     | `1.2`   | BM25 term-frequency saturation       |
 | `-bm25-b`      | `0.75`  | BM25 length normalization (0..1)     |
+| `-host`        | `127.0.0.1` | listen address (http only)       |
 | `-port`        | `8000`  | listen port (http only)              |
 | `-path`        | `/mcp`  | mount path (http only)               |
 
@@ -55,7 +59,7 @@ Retrieve the chunks most related to a prompt within a base folder.
 | Param         | Required | Description                                    |
 |---------------|----------|------------------------------------------------|
 | `prompt`      | yes      | natural-language query                         |
-| `base_folder` | no       | folder to search; defaults to `-root`          |
+| `base_folder` | no       | sub-folder under root; defaults to root        |
 
 Returns `chunks[]` of `{ text, source, start_line, score }`, ranked best first.
 
@@ -87,8 +91,10 @@ List indexable files. Paginated.
 `offset` for the next page. This caps response size to protect the client's
 context window.
 
-**Sandbox:** `grep`/`list_files` resolve `base_folder` relative to `-root` and
-reject any path escaping it (no `../` traversal).
+**Sandbox:** every tool reads through an `os.Root` opened on `-root`.
+`base_folder` is relative to it (absolute paths only if inside it), returned
+paths are root-relative, and `../` or symlinks leading outside root (or absolute
+symlinks) are never followed.
 
 ## How retrieval works
 

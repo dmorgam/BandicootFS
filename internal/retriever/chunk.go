@@ -3,17 +3,16 @@ package retriever
 import (
 	"context"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 )
 
-// collect walks baseFolder and splits every file with an allowed extension
-// into chunks. Unreadable files are skipped; a bad baseFolder is an error.
-func (l *Local) collect(ctx context.Context, baseFolder string) ([]Chunk, error) {
+// collect walks baseFolder in fsys and splits every file with an allowed
+// extension into chunks. Unreadable files are skipped; a bad baseFolder is an error.
+func (l *Local) collect(ctx context.Context, fsys fs.FS, baseFolder string) ([]Chunk, error) {
 	var chunks []Chunk
 
-	err := filepath.WalkDir(baseFolder, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, baseFolder, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -24,9 +23,9 @@ func (l *Local) collect(ctx context.Context, baseFolder string) ([]Chunk, error)
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := fs.ReadFile(fsys, path)
 		if err != nil {
-			return nil // skip unreadable files
+			return nil // skip unreadable files and symlinks leaving root
 		}
 		chunks = append(chunks, chunkFile(path, string(data), l.ChunkLines, l.Overlap)...)
 		return nil

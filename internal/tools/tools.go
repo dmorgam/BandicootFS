@@ -7,13 +7,14 @@ import (
 )
 
 type handler struct {
-	ret     retriever.Retriever
-	corpus  *corpus.Corpus
-	baseDir string
+	ret    retriever.Retriever
+	corpus *corpus.Corpus
 }
 
-func Register(srv *mcp.Server, r retriever.Retriever, baseDir string) {
-	h := &handler{ret: r, corpus: corpus.New(baseDir), baseDir: baseDir}
+// Register adds the tools to srv. Every tool reads through c, so none can reach
+// outside c.Root.
+func Register(srv *mcp.Server, r retriever.Retriever, c *corpus.Corpus) {
+	h := &handler{ret: r, corpus: c}
 
 	h.registerGetFileChunks(srv)
 	h.registerGrep(srv)

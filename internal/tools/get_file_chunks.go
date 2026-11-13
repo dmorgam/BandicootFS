@@ -8,7 +8,7 @@ import (
 )
 
 type getFileChunksInput struct {
-	BaseFolder string `json:"base_folder,omitempty" jsonschema:"folder to search within; defaults to the server base directory"`
+	BaseFolder string `json:"base_folder,omitempty" jsonschema:"sub-folder relative to the server root; defaults to root"`
 	Prompt     string `json:"prompt" jsonschema:"natural-language query to retrieve related chunks for"`
 }
 
@@ -28,12 +28,12 @@ func (h *handler) getFileChunks(
 	_ *mcp.CallToolRequest,
 	in getFileChunksInput,
 ) (*mcp.CallToolResult, getFileChunksOutput, error) {
-	baseFolder := in.BaseFolder
-	if baseFolder == "" {
-		baseFolder = h.baseDir // default to the base dir given to the MCP server
+	dir, err := h.corpus.Resolve(in.BaseFolder) // "" -> root; rejects paths outside root
+	if err != nil {
+		return nil, getFileChunksOutput{}, err
 	}
 
-	chunks, err := h.ret.Chunks(ctx, baseFolder, in.Prompt)
+	chunks, err := h.ret.Chunks(ctx, h.corpus.FS(), dir, in.Prompt)
 	if err != nil {
 		return nil, getFileChunksOutput{}, err
 	}

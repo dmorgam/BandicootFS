@@ -13,6 +13,7 @@ package retriever
 
 import (
 	"context"
+	"io/fs"
 	"sort"
 )
 
@@ -26,10 +27,12 @@ type Chunk struct {
 
 // Retriever returns the chunks most related to a prompt within a base folder.
 type Retriever interface {
-	Chunks(ctx context.Context, baseFolder, prompt string) ([]Chunk, error)
+	// Chunks ranks the files under baseFolder, a path in fsys. Pass a sandboxed
+	// fsys (e.g. os.Root.FS) to confine what can be read.
+	Chunks(ctx context.Context, fsys fs.FS, baseFolder, prompt string) ([]Chunk, error)
 }
 
-// Local is a Retriever over the host filesystem.
+// Local is a BM25 Retriever over any fs.FS.
 type Local struct {
 	Exts       []string // file extensions to include (with dot, lowercase)
 	ChunkLines int      // lines per chunk
@@ -114,10 +117,10 @@ func New(opts ...Option) *Local {
 	return l
 }
 
-// Chunks walks baseFolder, splits every matching file into chunks, then ranks
-// them against prompt with BM25.
-func (l *Local) Chunks(ctx context.Context, baseFolder, prompt string) ([]Chunk, error) {
-	chunks, err := l.collect(ctx, baseFolder)
+// Chunks walks baseFolder in fsys, splits every matching file into chunks, then
+// ranks them against prompt with BM25.
+func (l *Local) Chunks(ctx context.Context, fsys fs.FS, baseFolder, prompt string) ([]Chunk, error) {
+	chunks, err := l.collect(ctx, fsys, baseFolder)
 	if err != nil {
 		return nil, err
 	}

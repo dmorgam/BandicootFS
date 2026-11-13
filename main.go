@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/dmorgam/BandicootFS/internal/corpus"
 	"github.com/dmorgam/BandicootFS/internal/retriever"
 	"github.com/dmorgam/BandicootFS/internal/server"
 	transportpkg "github.com/dmorgam/BandicootFS/internal/transport"
@@ -31,6 +32,12 @@ func main() {
 			"transport",
 			"stdio",
 			"transport to use: stdio | http",
+			)
+
+		host = flag.String(
+			"host",
+			"127.0.0.1",
+			"address to listen on (http transport only); 0.0.0.0 exposes it to the network",
 			)
 
 		port = flag.Int(
@@ -103,6 +110,15 @@ func main() {
 	}
 	logger := slog.New(slog.NewTextHandler(logOut, nil))
 
+	// Sandbox: every tool reads through this handle, so nothing outside
+	// absRoot is reachable, not even through symlinks.
+	corp, err := corpus.Open(absRoot)
+	if err != nil {
+		logger.Error("cannot open root", "root", absRoot, "err", err)
+		os.Exit(1)
+	}
+	defer corp.Close()
+
 	// Context for clean stop
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
@@ -120,7 +136,7 @@ func main() {
 		retriever.WithK1(*k1),
 		retriever.WithB(*b),
 		retriever.WithMinScore(float32(*minScore)),
-	), absRoot)
+	), corp)
 
 	switch *transport {
 
@@ -142,11 +158,17 @@ func main() {
 		logger.Info(
 			"Selected transport",
 			"name", *transport,
+			"host", *host,
 			"port", *port,
 			"path", *mountPath,
 			"root", absRoot)
 
-		transportpkg.RunHTTP(ctx, logger, srv, *port, *mountPath)
+		transportpkg.RunHTTP(ctx, logger, srv, transportpkg.HTTPOptions{
+			Host:  *host,
+			Port:  *port,
+			Path:  *mountPath,
+			Token: os.Getenv("BANDICOOTFS_TOKEN"), // env, not a flag: flags leak via ps
+		})
 
 	default:
 		logger.Error(

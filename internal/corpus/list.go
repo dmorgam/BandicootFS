@@ -2,7 +2,7 @@ package corpus
 
 import (
 	"context"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"sort"
 )
@@ -15,7 +15,7 @@ type File struct {
 
 // List returns the indexable files under sub (root-relative), paginated.
 func (c *Corpus) List(ctx context.Context, sub, glob string, offset, limit int) (Page[File], error) {
-	dir, err := c.resolve(sub)
+	dir, err := c.Resolve(sub)
 	if err != nil {
 		return Page[File]{}, err
 	}
@@ -27,11 +27,11 @@ func (c *Corpus) List(ctx context.Context, sub, glob string, offset, limit int) 
 				return nil
 			}
 		}
-		info, err := os.Stat(path)
+		info, err := fs.Stat(c.FS(), path)
 		if err != nil {
-			return nil // skip
+			return nil // skip unreadable files and symlinks leaving root
 		}
-		files = append(files, File{Path: c.rel(path), Size: info.Size()})
+		files = append(files, File{Path: path, Size: info.Size()})
 		return nil
 	})
 	if err != nil {
